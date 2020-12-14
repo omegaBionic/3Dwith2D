@@ -25,7 +25,7 @@ def CameraCalibration():
     objpoints = []  # 
     imgpoints = []  # 
     ############ to adapt ##########################
-    images = glob.glob('../../../../Pictures/3d/chess/P30/*.jpg')
+    images = glob.glob('resources/chess_1/*.jpg')
     #################################################
     for fname in images:
         # img = cv.imread(fname)
