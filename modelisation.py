@@ -12,69 +12,75 @@ from scipy import ndimage
 import glob
 
 def CameraCalibration():
-    # 
+    # Define cornerSubPix configuration
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-    # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-    ############ to adapt ##########################
-    objp = np.zeros((4*6, 3), np.float32)
-    objp[:, :2] = np.mgrid[0:4, 0:6].T.reshape(-1, 2)
-    # 
-    objp[:, :2] *= 40
-    #################################################
-    # 
-    objpoints = []  # 
-    imgpoints = []  # 
-    ############ to adapt ##########################
-    images = glob.glob('resources/chess_1/*.jpg')
-    #################################################
+
+    # Size of chessboard
+    objp = np.zeros((4*4, 3), np.float32) # Size of chessboard
+    objp[:, :2] = np.mgrid[0:4, 0:4].T.reshape(-1, 2) # Size of chessboard
+    objp[:, :2] *= 40  # Size of square
+    objpoints = []  # objpoints for save calibrateCamera method
+    imgpoints = []  # imgpoints for save calibrateCamera method
+
+    # Load frames
+    images = glob.glob('resources/chess_2/*.jpg')
     for fname in images:
-        # img = cv.imread(fname)
-        img = cv.pyrDown(cv.imread(fname))
-        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        # 
-        ############ to adapt ##########################
-        ret, corners = cv.findChessboardCorners(gray, (4, 6), None)
-        #################################################
-        print(ret)
-        # 
+        print("Frame name: '{}'".format(fname))  # Print frame name
+
+
+        #img = cv.imread(fname) # Read frame
+        img = cv.pyrDown(cv.imread(fname)) # Read frame with downsample or upsample
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY) # Set img, BGR to GRAY
+
+        # Find chessboard corners
+        print("Find chessboard corners:")
+        ret, corners = cv.findChessboardCorners(gray, (4, 4), None)
+        print("---> corners: '{}' - ret: '{}'".format(corners, ret))
+
         if ret == True:
             objpoints.append(objp)
             corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             imgpoints.append(corners)
-            # 
-            ############ to adapt ##########################
-            cv.drawChessboardCorners(img, (4, 6), corners2, ret)
-            #################################################
-            cv.namedWindow('img', 0 )
-            cv.imshow('img', img)
-            cv.waitKey(500)
+
+            # Draw chessboard corners
+            print("Draw chessboard corners.")
+            cv.drawChessboardCorners(img, (4, 4), corners2, ret)
+
+            # Display frame and wait key
+            print("Display img -> Waitkey.\n")
+            cv.imshow('img', cv.resize(img, (int(img.shape[1] / 2), int(img.shape[0] / 2))))
+            cv.waitKey(0)
+        print("----")
     cv.destroyAllWindows()
 
-    # 
+    # Define calibrateCamera
     ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
     print('camraMatrix\n',mtx)
     print('dist\n',dist)
 
-    ############ to adapt ##########################
-    img = cv.pyrDown(cv.imread('../../../../Pictures/3d/chess/P30/IMG_20201206_093855.jpg'))
-    #################################################
+    # Open main picture with chessboard
+    img = cv.pyrDown(cv.imread('resources/chess_2/IMG_20201215_081142.jpg'))
+
+    # Get optimal ROI
     h, w = img.shape[:2]
-    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
+    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h)) # crop region of interest
     print('newcameramtx\n',newcameramtx)
 
-    # 
+    # Undistorted
     mapx, mapy = cv.initUndistortRectifyMap(mtx, dist, None, newcameramtx, (w, h), 5)
     dst = cv.remap(img, mapx, mapy, cv.INTER_LINEAR)
-    # 
-    x, y, w, h = roi
-    dst = dst[y:y + h, x:x + w]
-    cv.namedWindow('img', 0)
-    cv.imshow('img', dst)
-    cv.waitKey(0)
-    ############ to adapt ##########################
-    cv.imwrite('../../../../Pictures/3d/calibresultM.png', dst)
-    #################################################
 
+    # Display result
+    x, y, w, h = roi # Split ROI
+    dst = dst[y:y + h, x:x + w] # Crop ROI
+    cv.namedWindow('img', 0) # Create window
+    cv.imshow('img', dst) # Display dst image in windows
+    cv.waitKey(0) # Wait press key for continue
+
+    # Save result
+    cv.imwrite('resources/calibresultM.png', dst)
+
+    # Calculate error
     mean_error = 0
     for i in range(len(objpoints)):
         imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], mtx, dist)
@@ -128,13 +134,13 @@ def drawlines(img1,img2,lines,pts1,pts2):
 
 def StereoCalibrate(Cameramtx):
     ############ to adapt ##########################
-    img1 = cv.pyrDown(cv.imread('../../../../Pictures/3d/leftT2.jpg', 0))
-    img2 = cv.pyrDown(cv.imread('../../../../Pictures/3d/rightT2.jpg', 0))
+    img1 = cv.pyrDown(cv.imread('resources/chess_2/IMG_20201215_081142.jpg', 0))
+    img2 = cv.pyrDown(cv.imread('resources/chess_2/IMG_20201215_081142.jpg', 0))
     #################################################
     # opencv 4.5
-    # sift = cv.SIFT()
+    sift = cv.SIFT()
     # opencv 3.4
-    sift = cv.xfeatures2d.SIFT_create()
+    #sift = cv.xfeatures2d.SIFT_create()
     # 
     kp1, des1 = sift.detectAndCompute(img1, None)
     kp2, des2 = sift.detectAndCompute(img2, None)
@@ -179,8 +185,8 @@ def StereoCalibrate(Cameramtx):
 
 def EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE):
     ############ to adapt ##########################
-    img1 = cv.pyrDown(cv.imread('../../../../Pictures/3d/leftT2.jpg', 0))
-    img2 = cv.pyrDown(cv.imread('../../../../Pictures/3d/rightT2.jpg', 0))
+    img1 = cv.pyrDown(cv.imread('resources/chess_1/IMG_20201214_104555.jpg', 0))
+    img2 = cv.pyrDown(cv.imread('resources/chess_1/IMG_20201214_104558.jpg', 0))
     #################################################
     r,c = img1.shape
 
